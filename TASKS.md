@@ -18,7 +18,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · owner in parens.
 ## Phase 1.6 — Ship resources & game layer (D15–D18)
 - [x] T16 (worker): Ship store + rules — oxygen/hull/fuel/tokens, hull-dependent O2 leak tick (70/50/30 thresholds), per-agent token cost table, game over on O2=0, tokens 0 blocks runs, fuel 0 blocks navigation. HUD gauges, alarm states, game-over screen + restart, ?debug=1 panel with forced "simulate impact".
 - [x] T17 (worker): Wire runs & emails to resources — node activation deducts its token cost live, mission completion rewards tokens + restores its resource, incident emails apply effects on delivery (E2 → leak, E3 → fuel drain until corrected). Web Audio sounds (mail, alert, authorization, completed, game over) + mute toggle.
-- [~] T18 (qa): Game-layer QA (thresholds, game over, restart, token math, sounds).
+- [x] T18 (qa): Game-layer QA (thresholds, game over, restart, token math, sounds). Findings (4 MAJOR, 3 MINOR, 2 NIT) all fixed and re-verified.
 - [x] T19 (docs): Update docs for resource/game layer.
 
 ## Phase 2 — Real backend
