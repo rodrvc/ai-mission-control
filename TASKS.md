@@ -15,6 +15,12 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · owner in parens.
 - [x] T14 (qa): Full narrative playthrough QA. Findings (2 MAJOR, 2 MINOR, 1 NIT) fixed and re-verified live: mission-batch double-delivery guard, real DENY→revise→re-authorize HITL loop, modal focus trap, router tie-break by safety priority + word-boundary matching.
 - [x] T15 (docs): README/FLOW update for narrative UX.
 
+## Phase 1.6 — Ship resources & game layer (D15–D18)
+- [x] T16 (worker): Ship store + rules — oxygen/hull/fuel/tokens, hull-dependent O2 leak tick (70/50/30 thresholds), per-agent token cost table, game over on O2=0, tokens 0 blocks runs, fuel 0 blocks navigation. HUD gauges, alarm states, game-over screen + restart, ?debug=1 panel with forced "simulate impact".
+- [x] T17 (worker): Wire runs & emails to resources — node activation deducts its token cost live, mission completion rewards tokens + restores its resource, incident emails apply effects on delivery (E2 → leak, E3 → fuel drain until corrected). Web Audio sounds (mail, alert, authorization, completed, game over) + mute toggle.
+- [~] T18 (qa): Game-layer QA (thresholds, game over, restart, token math, sounds).
+- [x] T19 (docs): Update docs for resource/game layer.
+
 ## Phase 2 — Real backend
 - [ ] T6: FastAPI + endpoints + SSE per contract.
 - [ ] T7: LangGraph StateGraph (routing, retries, reviewer loop, interrupt for HITL), simulated tools; optional OpenAI (gpt-4o-mini) with simulated fallback.

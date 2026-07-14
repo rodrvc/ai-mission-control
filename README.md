@@ -50,6 +50,11 @@ console mid-run, and the captain-authorization pause.)*
   real backend later, so the UI never has to change when the data source does.
 - **React Flow visualization** — a read-only, fixed-topology graph with
   animated edges on the active path and a node inspector for details.
+- **Cost-aware orchestration** — every agent/tool activation deducts a
+  per-node token cost from a shared budget, and retries bill again, so
+  picking the right crew and a precise prompt is rewarded the same way it
+  would be in a production multi-agent system. See
+  [Ship systems & the token economy](#ship-systems--the-token-economy).
 
 ## Current status
 
@@ -102,6 +107,51 @@ Routing is keyword-based in Phase 1 (see `frontend/src/lib/simulation/router.ts`
 and will move to a real LLM router in Phase 2 behind the same interface — the
 console UI doesn't change either way. See [`docs/FLOW.md`](docs/FLOW.md) for
 the full step-by-step walkthrough.
+
+## Ship systems & the token economy
+
+The HUD along the top tracks four ship resources, live:
+
+| Resource | What it means |
+|----------|----------------|
+| **O2** | Life support. Hits 0 → game over. |
+| **Hull** | Ship integrity. Damaged by incidents; drives how fast O2 leaks (see below). |
+| **Fuel** | Propellant. Hits 0 → navigation disabled + critical alert (not game over). |
+| **Tokens** | Agent compute currency. Every crew activation costs tokens; run out and the console disables with "insufficient compute." |
+
+**The core skill: every agent activation costs tokens.** Each node in the
+graph has its own price — cheap orchestration and tool calls, expensive
+specialist reasoning and repair work — and a **retry re-bills the same node
+again**. Choosing the right crew and writing a precise order isn't just
+flavor text: it's the same cost discipline a real multi-agent system needs,
+made visible.
+
+| Node | Cost | Node | Cost |
+|------|-----:|------|-----:|
+| Orchestrator | 5 | Diagnostics Agent | 10 |
+| Specialist (any) | 15 | Repair Agent | 25 |
+| Tool call (any) | 4 | Safety Reviewer | 12 |
+| Quality Check | 5 | User Request / Final Response | 0 |
+
+Completing a mission pays a reward: **80 tokens** for life-support or
+navigation, **40** for the knowledge run — enough to offset a clean pass,
+tight enough that a rejected-and-retried repair plan visibly eats into it.
+
+**Missions hit the ship, not just the graph.** The life-support incident
+email damages hull the moment it lands, pushing O2 into a slow leak; the
+navigation deviation email starts draining fuel from delivery. Completing
+each mission repairs the damage it caused and restores the resource —
+stabilizing the ship is the tangible payoff of finishing the run, on top of
+VEGA's final response. Let O2 reach zero and it's game over, with a
+"Restart campaign" option to begin again.
+
+Every mail arrival, alert threshold, authorization pause, mission
+completion, and game-over has a short generated Web Audio cue (no audio
+files) — there's a mute toggle in the HUD if you'd rather run silent.
+
+![Ship HUD and resource effects](docs/screenshots/hud-critical.png)
+*(See `docs/screenshots/` for more captures of the HUD, an incident in
+progress, and the game-over screen.)*
 
 ## Architecture overview
 

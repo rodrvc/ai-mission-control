@@ -7,11 +7,14 @@ import { MailButton } from "@/components/inbox/MailButton";
 import { SHIP_AI_NAME, SHIP_NAME } from "@/data/narrative";
 import { useInboxStore } from "@/lib/store/inboxStore";
 import { useRunStore } from "@/lib/store/runStore";
+import { useShipStore } from "@/lib/store/shipStore";
 
 interface HeaderProps {
   isRunning: boolean;
   onSubmitPrompt: (prompt: string) => void;
   onAbort: () => void;
+  /** False when tokens are depleted (D17) — console goes read-only. */
+  canSubmit?: boolean;
 }
 
 const RUN_STATUS_LABEL: Record<string, string> = {
@@ -26,12 +29,14 @@ const RUN_STATUS_LABEL: Record<string, string> = {
  * The input is disabled mid-run (current run state shows instead); ABORT
  * stays available throughout.
  */
-export function Header({ isRunning, onSubmitPrompt, onAbort }: HeaderProps) {
+export function Header({ isRunning, onSubmitPrompt, onAbort, canSubmit = true }: HeaderProps) {
   const runStatus = useRunStore((state) => state.runStatus);
   const [prompt, setPrompt] = useState("");
 
   const deliverWelcome = useInboxStore((state) => state.deliverWelcome);
   const dismissConsoleHint = useInboxStore((state) => state.dismissConsoleHint);
+  const muted = useShipStore((state) => state.muted);
+  const toggleMuted = useShipStore((state) => state.toggleMuted);
 
   // Deliver the welcome email once, shortly after the console mounts (D11).
   useEffect(() => {
@@ -41,7 +46,7 @@ export function Header({ isRunning, onSubmitPrompt, onAbort }: HeaderProps) {
 
   const submit = () => {
     const trimmed = prompt.trim();
-    if (!trimmed || isRunning) return;
+    if (!trimmed || isRunning || !canSubmit) return;
     onSubmitPrompt(trimmed);
     setPrompt("");
   };
@@ -61,6 +66,10 @@ export function Header({ isRunning, onSubmitPrompt, onAbort }: HeaderProps) {
           {isRunning ? (
             <span className="truncate font-mono text-sm text-text-muted">
               {RUN_STATUS_LABEL[runStatus] ?? "Run in progress…"}
+            </span>
+          ) : !canSubmit ? (
+            <span className="truncate font-mono text-sm text-danger">
+              INSUFFICIENT COMPUTE — agents offline
             </span>
           ) : (
             <input
@@ -83,7 +92,7 @@ export function Header({ isRunning, onSubmitPrompt, onAbort }: HeaderProps) {
         {!isRunning && (
           <button
             type="button"
-            disabled={!prompt.trim()}
+            disabled={!prompt.trim() || !canSubmit}
             onClick={submit}
             className="shrink-0 rounded-md border border-accent bg-accent/15 px-4 py-1.5 font-mono text-xs font-semibold tracking-wide text-accent uppercase hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -101,6 +110,44 @@ export function Header({ isRunning, onSubmitPrompt, onAbort }: HeaderProps) {
           </button>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={toggleMuted}
+        aria-label={muted ? "Unmute ship alerts" : "Mute ship alerts"}
+        aria-pressed={muted}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-panel-border bg-panel-raised text-text-muted hover:border-accent hover:text-accent"
+      >
+        {muted ? (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="h-4 w-4"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5 6 9H3v6h3l5 4V5Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="m16 9 5 6M21 9l-5 6" />
+          </svg>
+        ) : (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="h-4 w-4"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5 6 9H3v6h3l5 4V5Z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"
+            />
+          </svg>
+        )}
+      </button>
 
       <MailButton />
       <InboxModal />

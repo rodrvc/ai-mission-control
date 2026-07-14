@@ -140,3 +140,57 @@ approve sequence with no pause. `knowledge` and `irrelevant` have no review
 gate at all. This means whether a run pauses is now determined by *which
 mission the router picked*, not by any run-time setting — the interrupt is
 part of that mission's story, not a global mode.
+
+## Game layer (Phase 1.6)
+
+Adds a resource simulation on top of the narrative layer (D15–D18). The
+frozen event contract and `runStore` reducer above are untouched — this
+layer only *reacts* to events and email delivery from the outside.
+
+**shipStore + 1s tick.** `frontend/src/lib/store/shipStore.ts` holds O2,
+hull, fuel, tokens, and `muted`, each clamped to its max. A `setInterval`
+at `TICK_INTERVAL_MS` (1000ms) drives the oxygen leak every tick; all other
+resource changes (token spend/earn, fuel drain, hull damage/repair) are
+one-shot store actions called from elsewhere, not tick-driven.
+
+**Hull-band leak function.** `getO2LeakRateForHull(hull)`
+(`frontend/src/lib/game/constants.ts`) is a pure, unit-testable function
+mapping hull integrity to a leak rate: ≥70 sealed (no leak), ≥50 slow
+(~10 min to empty), ≥30 fast (~5 min), <30 critical (~100s). Bands are
+tuned so the captain always has time to notice and react — never instant
+death. The tick calls this function against current hull on every beat, so
+a hull repair mid-leak immediately slows or stops it on the next tick.
+
+**Incidents module (start/stop anchored to narrative events).**
+`frontend/src/lib/game/incidents.ts` pairs each mission's resource effect
+with its trigger, deliberately kept outside `runStore`/`shipStore` (SRP —
+"an email arrived" and "a mission finished" are narrative events, not run
+or resource state): `applyLifeSupportIncident()` fires once when the E2
+mission batch is delivered (drops hull toward a fixed target, never raises
+it, never double-applies) and `resolveLifeSupportIncident()` undoes exactly
+that damage plus refills O2 on mission completion. `startFuelDrain()` /
+`stopFuelDrain()` bracket the E3 navigation deviation the same way, via a
+plain interval. `resetIncidents()` clears in-memory tracking on campaign
+restart.
+
+**Economy bridge decorates `applyEvent`, doesn't replace it.**
+`frontend/src/lib/game/economy.ts`'s `createEconomyBridge(scenarioId,
+applyToStore)` returns a wrapped `applyEvent` that: charges
+`NODE_TOKEN_COST[nodeId]` on every transition to `running` **or**
+`retrying` (a retry is a fresh activation and bills again — the intended
+lesson, not a bug), pays `MISSION_TOKEN_REWARD[scenarioId]` and calls the
+matching incident-resolve/stop function on `run_status: completed`, and
+triggers sounds on `awaiting_approval`/`completed` — then always forwards
+the untouched event to the real store reducer. `runStore.applyEvent` itself
+stays a pure function of the frozen contract; call sites (`page.tsx`)
+create one bridge per run and feed every event through it instead of the
+raw store action.
+
+**Sound module.** `frontend/src/lib/sound/sounds.ts` generates all cues
+with Web Audio oscillators (no audio files) and creates its `AudioContext`
+lazily on the first `pointerdown`/`keydown` (browser autoplay policy);
+calls before that are queued and flushed on unlock. Sounds are triggered
+at state-transition edges (mail arrival, approval-required, mission
+complete, game over), not on level/threshold checks each tick, so they
+fire once per event rather than once per tick while a condition holds.
+Respects `shipStore.muted`.

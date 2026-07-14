@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { EMAILS } from "@/data/emails";
+import { applyLifeSupportIncident, resetIncidents, startFuelDrain } from "@/lib/game/incidents";
+import { playSound } from "@/lib/sound/sounds";
 
 /** Ids of the mission emails delivered together after E0 is read (D11). */
 const MISSION_EMAIL_IDS = ["E1", "E2", "E3"];
@@ -24,6 +26,11 @@ export interface InboxState {
   missionsScheduled: boolean;
 }
 
+/** Handle for the pending mission-batch delivery timer, tracked outside the
+ * store state so `reset()` can cancel it — a restart inside the 4s window
+ * must not let the stale timer deliver the batch into the fresh campaign. */
+let missionBatchTimer: ReturnType<typeof setTimeout> | null = null;
+
 export interface InboxActions {
   /** Deliver E0. Call once on app mount. */
   deliverWelcome: () => void;
@@ -31,6 +38,8 @@ export interface InboxActions {
   closeModal: () => void;
   selectEmail: (emailId: string) => void;
   dismissConsoleHint: () => void;
+  /** Restores initial inbox state (used by restart-campaign, D15). */
+  reset: () => void;
 }
 
 const initialState: InboxState = {
@@ -52,6 +61,7 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
       deliveredIds: [...state.deliveredIds, "E0"],
       unreadIds: [...state.unreadIds, "E0"],
     }));
+    playSound("mailArrive");
   },
 
   openModal: () => set({ isModalOpen: true }),
@@ -70,7 +80,8 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
       // reflect the batch once the timer below actually fires).
       set({ missionsScheduled: true });
       const delay = EMAILS.find((email) => email.id === "E1")?.arrivesAfter ?? 4000;
-      setTimeout(() => {
+      missionBatchTimer = setTimeout(() => {
+        missionBatchTimer = null;
         set((state) => {
           const newIds = MISSION_EMAIL_IDS.filter((id) => !state.deliveredIds.includes(id));
           if (newIds.length === 0) return state;
@@ -79,6 +90,12 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
             unreadIds: [...state.unreadIds, ...newIds],
           };
         });
+        // Mission batch has landed (D18): E2/E3's resource effects begin the
+        // moment the emails arrive, not when they're opened — the ship
+        // doesn't wait for the captain to read the report.
+        applyLifeSupportIncident();
+        startFuelDrain();
+        playSound("mailArrive");
       }, delay);
       return;
     }
@@ -101,4 +118,13 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
   },
 
   dismissConsoleHint: () => set({ isConsoleHintActive: false }),
+
+  reset: () => {
+    if (missionBatchTimer !== null) {
+      clearTimeout(missionBatchTimer);
+      missionBatchTimer = null;
+    }
+    resetIncidents();
+    set({ ...initialState });
+  },
 }));

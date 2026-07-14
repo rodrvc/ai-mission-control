@@ -22,6 +22,13 @@ support module."*
    pastes it) into the console. Nothing about the graph exists yet — this
    step only produces the free-text string the router will see next.
 
+   The moment this mission's email batch is delivered (not when the run
+   starts), the incident also lands on the ship for real: hull integrity
+   drops to a fixed target (65), which crosses the "sealed" threshold (70)
+   and starts a slow oxygen leak — visible on the HUD, ticking every
+   second, well before the captain types anything. This is what makes the
+   run feel urgent rather than cosmetic.
+
 1. **User Request** — the captain's order is logged as the entry point of
    the run.
 
@@ -89,13 +96,47 @@ support module."*
 11. **Final Response** — the operator receives a plain-language summary of
     the incident, the fix, and current status. The run's overall status
     moves to `completed`, and this event carries the full `finalResponse`
-    text.
+    text. Completion also **repairs exactly the hull damage the incident
+    caused** and tops oxygen back to full, sealing the leak — the ship
+    outcome, not just the chat outcome.
 
 Total node visits for this run: 12 (repair-agent and safety-reviewer are each
 visited twice — once per review pass). Nodes outside this path
 (navigation-specialist, nav-computer-tool, knowledge-specialist,
 knowledge-base-tool) stay `pending` and dimmed for the entire run, since the
 orchestrator never routed to them.
+
+### The token bill for this run
+
+Every node activation above deducts its own cost from the shared token
+pool the instant it starts (or restarts) — the ledger for this exact run:
+
+| Step | Node | Cost |
+|------|------|-----:|
+| 1 | user-request | 0 |
+| 2 | orchestrator | 5 |
+| 3 | life-support-specialist | 15 |
+| 4 | telemetry-tool | 4 |
+| 5 | diagnostics-agent | 10 |
+| 6 | repair-agent (attempt 1) | 25 |
+| 7 | safety-reviewer (pass 1, rejects) | 12 |
+| 8 | repair-agent (attempt 2, **retry**) | 25 |
+| 9 | safety-reviewer (pass 2, approves) | 12 |
+| 10 | quality-check | 5 |
+| 11 | final-response | 0 |
+| **Total spent** | | **113** |
+
+The rejection at step 7 doesn't refund step 6 — the retry at step 8 is a
+fresh activation of `repair-agent` and bills its 25-token cost again, same
+as the first attempt. That's the "retries cost real money" lesson made
+concrete: a captain whose free-text order sends the crew down a shaky plan
+pays for it twice. On completion, the mission reward pays back **80
+tokens**, so this particular run nets −33 tokens against the reward alone
+(before whatever the captain already had banked) — a clean first-pass
+repair would have netted +8.
+
+The [Ship systems & the token economy](../README.md#ship-systems--the-token-economy)
+section in the README has the full per-node cost table and reward list.
 
 ## The guardrail: declining an irrelevant order
 

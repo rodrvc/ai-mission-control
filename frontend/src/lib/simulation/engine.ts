@@ -168,6 +168,11 @@ export function startRun(
     }
     if (script.onRejectLoopsToGate) {
       reviewPass += 1;
+      // The run is active again during the revision (diagnostics/repair
+      // recompute) — tell the header so it falls back to "Run in
+      // progress…" instead of still showing "Awaiting captain
+      // authorization…" until reachReviewGate re-pauses it.
+      emit({ type: "run_status", status: "started" });
       playSteps(script.onReject, reachReviewGate);
       return;
     }

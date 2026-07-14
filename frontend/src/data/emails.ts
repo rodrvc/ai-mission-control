@@ -50,7 +50,7 @@ export const EMAILS: Email[] = [
     subject: "Mission: Life support anomaly, aft module",
     body: [
       "Captain,",
-      "Engineering flagged a slow but steady drop in oxygen pressure readings in the aft life support module over the last two watch cycles. Nothing critical yet, but the trend is not self-correcting, and I would rather we run it down now than at 2% margin.",
+      "Engineering flagged a slow but steady drop in oxygen pressure readings in the aft life support module over the last two watch cycles. A hull breach in the aft section is bleeding pressure — cabin O2 is now dropping, and the trend will not self-correct on its own.",
       "Please task the crew with investigating the pressure drop — I want to know whether we are looking at a sensor fault, a seal leak, or a scrubber problem before it becomes a breach.",
       "Route it through VEGA so repair and safety review are looped in from the start.",
       "Transmit your directive to VEGA via the ship console.",
@@ -64,7 +64,7 @@ export const EMAILS: Email[] = [
     subject: "Mission: Approach correction required",
     body: [
       "Captain,",
-      "Nav control is reading a trajectory deviation on our XJS-7 approach corridor, small for now but compounding with every hour we hold the current heading. We need a course correction plotted before it grows into a costlier burn later.",
+      "Nav control is reading a trajectory deviation on our XJS-7 approach corridor: the deviation is costing propellant every second we stay off-course, and it compounds the longer we hold the current heading. We need a course correction plotted before it grows into a costlier burn later.",
       "Order the crew to work the correction with VEGA. Be advised: any correction burn on final approach requires your direct authorization before ignition — VEGA will hold at that gate until you confirm.",
       "Transmit your directive to VEGA via the ship console.",
       "— Navigation Control",
