@@ -77,11 +77,15 @@ export const MISSION_TOKEN_REWARD = {
 } as const;
 
 /**
- * Email→indicator effects (D18). E2 (life-support incident) drops hull
- * integrity to a fixed target the moment the mission batch is delivered,
- * pushing oxygen into the slow-leak band (see HULL_BAND_THRESHOLDS.slow)
- * so the leak becomes visible without being an immediate emergency.
- * Completing the life-support mission repairs exactly this much hull back.
+ * Email→indicator effects (D18/D20). E2 (life-support incident) drops GLOBAL
+ * hull integrity (mean of the 4 named sections) to this target the moment
+ * the mission batch is delivered, pushing oxygen into the slow-leak band
+ * (see HULL_BAND_THRESHOLDS.slow) so the leak becomes visible without being
+ * an immediate emergency. Since D20, the damage is applied to specific
+ * sections (aft-module + engineering — see src/lib/game/incidents.ts for the
+ * exact per-section arithmetic that lands the mean here); this constant
+ * documents the resulting global target. Completing the life-support
+ * mission repairs exactly the damage it caused back.
  */
 export const LIFE_SUPPORT_INCIDENT_HULL_TARGET = 65;
 

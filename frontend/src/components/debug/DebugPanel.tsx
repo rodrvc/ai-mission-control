@@ -20,8 +20,14 @@ export function DebugPanel() {
   const spendTokens = useShipStore((state) => state.spendTokens);
   const reset = useShipStore((state) => state.reset);
   const actions: DebugAction[] = [
-    { label: "Impact −15 hull", run: () => damageHull(15, "debug: simulated impact") },
-    { label: "Impact −40 hull", run: () => damageHull(40, "debug: simulated impact") },
+    {
+      label: "Impact aft −15",
+      run: () => damageHull(15, "debug: simulated impact", "aft-module"),
+    },
+    {
+      label: "Impact engineering −15",
+      run: () => damageHull(15, "debug: simulated impact", "engineering"),
+    },
     { label: "O2 −20", run: () => restoreOxygen(-20) },
     { label: "Fuel −30", run: () => consumeFuel(30) },
     { label: "Tokens −150", run: () => spendTokens(150) },
@@ -29,7 +35,7 @@ export function DebugPanel() {
   ];
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-1.5 rounded-md border border-panel-border bg-panel/95 p-3 shadow-lg backdrop-blur-sm">
+    <div className="fixed bottom-[11rem] left-4 z-40 flex flex-col gap-1.5 rounded-md border border-panel-border bg-panel/95 p-3 shadow-lg backdrop-blur-sm">
       <span className="font-mono text-[10px] font-semibold tracking-widest text-text-muted uppercase">
         Debug
       </span>

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { MAX_FUEL, MAX_HULL, MAX_OXYGEN } from "@/lib/game/constants";
 import { playSound } from "@/lib/sound/sounds";
-import { useShipStore } from "@/lib/store/shipStore";
+import { getHull, useShipStore } from "@/lib/store/shipStore";
 
 const CRITICAL_PERCENT = 25;
 
@@ -19,7 +19,7 @@ function isCritical(value: number, max: number): boolean {
  */
 export function useResourceSounds(): void {
   const oxygen = useShipStore((state) => state.oxygen);
-  const hull = useShipStore((state) => state.hull);
+  const hull = useShipStore(getHull);
   const fuel = useShipStore((state) => state.fuel);
   const isGameOver = useShipStore((state) => state.isGameOver);
 

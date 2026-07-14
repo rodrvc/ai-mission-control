@@ -8,6 +8,7 @@ import { EventLogStrip } from "@/components/layout/EventLogStrip";
 import { GraphCanvas } from "@/components/layout/GraphCanvas";
 import { Header } from "@/components/layout/Header";
 import { SidePanel } from "@/components/layout/SidePanel";
+import { VegaWidget } from "@/components/vega/VegaWidget";
 import { createEconomyBridge } from "@/lib/game/economy";
 import { resetIncidents } from "@/lib/game/incidents";
 import { useResourceSounds } from "@/lib/hooks/useResourceSounds";
@@ -123,18 +124,21 @@ export default function Home() {
       {/* inert while game over (fix for billed-behind-overlay bug): makes the
           whole app non-focusable/non-interactive without a manual focus trap. */}
       <div className="flex h-full flex-col" inert={isGameOver}>
-        <Header
-          isRunning={isRunning}
-          onSubmitPrompt={handleSubmitPrompt}
-          onAbort={handleAbort}
-          canSubmit={!hasInsufficientCompute}
-        />
+        <Header isRunning={isRunning} onAbort={handleAbort} />
         <ShipHud />
         <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
           <GraphCanvas onApprove={handleApprove} onReject={handleReject} />
           <SidePanel onApprove={handleApprove} onReject={handleReject} />
         </div>
         <EventLogStrip />
+        <VegaWidget
+          isRunning={isRunning}
+          onSubmitPrompt={handleSubmitPrompt}
+          onAbort={handleAbort}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          canSubmit={!hasInsufficientCompute}
+        />
       </div>
       <GameOverOverlay onRestart={handleRestartCampaign} />
       {isDebugMode && <DebugPanel />}

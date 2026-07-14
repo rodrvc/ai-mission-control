@@ -21,6 +21,12 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · owner in parens.
 - [x] T18 (qa): Game-layer QA (thresholds, game over, restart, token math, sounds). Findings (4 MAJOR, 3 MINOR, 2 NIT) all fixed and re-verified.
 - [x] T19 (docs): Update docs for resource/game layer.
 
+## Phase 1.7 — Graph & HUD redesign (D19–D21)
+- [x] T20 (worker): Hub topology, square nodes, robot/tool icons, tool side-attachments, repair as sub-agent.
+- [x] T21 (worker): HUD cards with radial gauges; hull card with ship sections; E2 damages Aft Module (+Engineering collateral).
+- [x] T22 (worker): VEGA floating chat widget replaces header console.
+- [x] T23 (qa): Redesign QA + regression playthrough. Findings (3 MAJOR, 3 MINOR, 3 NIT) fixed and re-verified.
+
 ## Phase 2 — Real backend
 - [ ] T6: FastAPI + endpoints + SSE per contract.
 - [ ] T7: LangGraph StateGraph (routing, retries, reviewer loop, interrupt for HITL), simulated tools; optional OpenAI (gpt-4o-mini) with simulated fallback.

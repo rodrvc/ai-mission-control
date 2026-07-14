@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
   Controls,
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   type Edge,
   type EdgeTypes,
   type Node,
@@ -21,6 +23,8 @@ const edgeTypes: EdgeTypes = {};
 const EDGE_MUTED_COLOR = "#1f2a3a";
 const EDGE_ACCENT_COLOR = "#2dd4bf";
 const EDGE_WARNING_COLOR = "#f5a524";
+const EDGE_USES_MUTED_COLOR = "#1e3a3a";
+const EDGE_USES_ACTIVE_COLOR = "#5eead4";
 
 interface GraphCanvasProps {
   onApprove: () => void;
@@ -33,8 +37,20 @@ interface GraphCanvasProps {
  * come from the static topology (no auto-layout, no drag/connect/delete).
  * Overlays an unmissable approval banner while paused for HITL, and a
  * final-response toast once the run completes.
+ *
+ * Wrapped in its own ReactFlowProvider so the inner component can call
+ * useReactFlow() to re-fit the view on container resize.
  */
-export function GraphCanvas({ onApprove, onReject }: GraphCanvasProps) {
+export function GraphCanvas(props: GraphCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <GraphCanvasInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function GraphCanvasInner({ onApprove, onReject }: GraphCanvasProps) {
+  const { fitView } = useReactFlow();
   const nodeStates = useRunStore((state) => state.nodeStates);
   const activeEdgeIds = useRunStore((state) => state.activeEdgeIds);
   const selectedNodeId = useRunStore((state) => state.selectedNodeId);
@@ -55,6 +71,7 @@ export function GraphCanvas({ onApprove, onReject }: GraphCanvasProps) {
           label: topo.label,
           kind: topo.kind,
           status: nodeStates[topo.id]?.status ?? "pending",
+          variant: topo.variant,
         } satisfies MissionNodeData,
         selected: topo.id === selectedNodeId,
         draggable: false,
@@ -73,11 +90,18 @@ export function GraphCanvas({ onApprove, onReject }: GraphCanvasProps) {
         const isActive = topo.isRejectLoop
           ? activeEdgeIds.includes(topo.id) && Boolean(nodeStates["repair-agent"]?.hasRetried)
           : activeEdgeIds.includes(topo.id);
-        const color = isActive
-          ? topo.isRejectLoop
-            ? EDGE_WARNING_COLOR
-            : EDGE_ACCENT_COLOR
-          : EDGE_MUTED_COLOR;
+        const isUses = topo.kind === "uses";
+        const isSubAgentEdge = topo.id === "e-diagnostics-repair";
+
+        const color = isUses
+          ? isActive
+            ? EDGE_USES_ACTIVE_COLOR
+            : EDGE_USES_MUTED_COLOR
+          : isActive
+            ? topo.isRejectLoop
+              ? EDGE_WARNING_COLOR
+              : EDGE_ACCENT_COLOR
+            : EDGE_MUTED_COLOR;
 
         return {
           id: topo.id,
@@ -89,13 +113,32 @@ export function GraphCanvas({ onApprove, onReject }: GraphCanvasProps) {
           selectable: false,
           style: {
             stroke: color,
-            strokeWidth: isActive ? 2 : 1.5,
-            strokeDasharray: topo.isRejectLoop ? "6 4" : undefined,
+            strokeWidth: isSubAgentEdge ? 1.25 : isActive ? 2 : 1.5,
+            strokeDasharray: topo.isRejectLoop ? "6 4" : isUses ? "3 4" : undefined,
+            opacity: isUses && !isActive ? 0.6 : 1,
           },
         } satisfies Edge;
       }),
     [activeEdgeIds, nodeStates],
   );
+
+  // Re-fit the view whenever the window resizes (e.g. side panel/layout
+  // breakpoint changes) so all 12 nodes stay framed instead of only on
+  // initial mount. Debounced to avoid thrashing during a drag-resize.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleResize = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        fitView({ padding: 0.15 });
+      }, 150);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (timer) clearTimeout(timer);
+    };
+  }, [fitView]);
 
   return (
     <div
@@ -141,6 +184,12 @@ export function GraphCanvas({ onApprove, onReject }: GraphCanvasProps) {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
+        fitViewOptions={{ padding: 0.15 }}
+        // Default minZoom (0.5) is too tight to fit the full 12-node hub at
+        // smaller container sizes (e.g. 1100x700 with the side panel open) —
+        // fitView silently clamps to minZoom and clips nodes. Lower it so
+        // fitView can always shrink enough to frame every node.
+        minZoom={0.2}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={true}

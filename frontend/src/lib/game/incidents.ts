@@ -5,48 +5,73 @@
 // is the narrative glue between "an email arrived" / "a mission finished"
 // and the resource simulation.
 
-import {
-  FUEL_DRAIN_RATE_PER_SECOND,
-  LIFE_SUPPORT_INCIDENT_HULL_TARGET,
-  MAX_OXYGEN,
-  TICK_INTERVAL_MS,
-} from "@/lib/game/constants";
+import { FUEL_DRAIN_RATE_PER_SECOND, MAX_OXYGEN, TICK_INTERVAL_MS } from "@/lib/game/constants";
 import { useShipStore } from "@/lib/store/shipStore";
 
 // ---- E2: life-support incident (hull damage -> O2 leak) ------------------
 
-/** Damage actually applied by the incident, so completion can undo exactly
- * this much (D18: "repair the damage amount the incident caused"), not just
- * jump hull to a fixed value that could clobber unrelated damage. */
-let lastIncidentHullDamage = 0;
+/**
+ * E2 damage split across the two sections in the aft half of the ship
+ * (D20): "aft-module" takes the full breach, "engineering" (adjoining the
+ * breach) takes a secondary hit. With all sections starting at 100, this
+ * lands the GLOBAL hull (mean of 4 sections) at exactly 65:
+ *   (100 [command-deck] + 0 [aft-module] + 60 [engineering] + 100 [drive]) / 4 = 65
+ * which pushes oxygen into the slow-leak band (see HULL_BAND_THRESHOLDS.slow)
+ * without being an immediate emergency. Only applied once per delivery
+ * (guarded by the caller) and only if those sections aren't already at/below
+ * this damage (never raises integrity).
+ */
+const AFT_MODULE_DAMAGE = 100;
+const ENGINEERING_DAMAGE = 40;
+
+/** Damage actually applied by the incident per section, so completion can
+ * undo exactly this much (D18: "repair the damage amount the incident
+ * caused"), not just jump hull to a fixed value that could clobber unrelated
+ * damage. */
+let lastIncidentDamage: { "aft-module": number; engineering: number } = {
+  "aft-module": 0,
+  engineering: 0,
+};
 
 /**
- * Applies the E2 hull hit the moment the mission batch is delivered. Only
- * drops hull toward the target — never raises it — and never re-applies
+ * Applies the E2 hull hit the moment the mission batch is delivered: damages
+ * aft-module and engineering specifically (D20 — "the E2 incident damages
+ * the Aft Module specifically", extended here to a secondary engineering hit
+ * so the arithmetic lands on the documented global target). Never re-applies
  * twice for the same delivery (guarded by the caller, which only calls this
  * once per campaign per delivery).
  */
 export function applyLifeSupportIncident(): void {
-  const { hull, damageHull } = useShipStore.getState();
-  const damage = Math.max(0, hull - LIFE_SUPPORT_INCIDENT_HULL_TARGET);
-  if (damage <= 0) return;
-  lastIncidentHullDamage = damage;
-  damageHull(damage, "life-support incident: aft pressure breach");
+  const { hullSections, damageHull } = useShipStore.getState();
+  const aftDamage = Math.min(AFT_MODULE_DAMAGE, hullSections["aft-module"]);
+  const engineeringDamage = Math.min(ENGINEERING_DAMAGE, hullSections.engineering);
+  if (aftDamage <= 0 && engineeringDamage <= 0) return;
+  lastIncidentDamage = { "aft-module": aftDamage, engineering: engineeringDamage };
+  if (aftDamage > 0) {
+    damageHull(aftDamage, "life-support incident: aft pressure breach", "aft-module");
+  }
+  if (engineeringDamage > 0) {
+    damageHull(engineeringDamage, "life-support incident: aft pressure breach", "engineering");
+  }
 }
 
 /**
- * Repairs exactly the damage the incident caused and tops oxygen back to
- * full (D18: "life-support completion -> restoreOxygen to full AND stop the
- * leak"). Sealing the breach is what lets a full refill make sense; the
- * repair happens even if lastIncidentHullDamage is 0, since a captain who
- * lets the leak run for a while still expects a full tank back on success.
+ * Repairs exactly the damage the incident caused (both sections) and tops
+ * oxygen back to full (D18: "life-support completion -> restoreOxygen to
+ * full AND stop the leak"). Sealing the breach is what lets a full refill
+ * make sense; the repair happens even if no damage is tracked, since a
+ * captain who lets the leak run for a while still expects a full tank back
+ * on success.
  */
 export function resolveLifeSupportIncident(): void {
   const { restoreOxygen, repairHull } = useShipStore.getState();
-  if (lastIncidentHullDamage > 0) {
-    repairHull(lastIncidentHullDamage);
-    lastIncidentHullDamage = 0;
+  if (lastIncidentDamage["aft-module"] > 0) {
+    repairHull(lastIncidentDamage["aft-module"], "aft-module");
   }
+  if (lastIncidentDamage.engineering > 0) {
+    repairHull(lastIncidentDamage.engineering, "engineering");
+  }
+  lastIncidentDamage = { "aft-module": 0, engineering: 0 };
   restoreOxygen(MAX_OXYGEN);
 }
 
@@ -74,6 +99,6 @@ export function stopFuelDrain(): void {
 /** Resets in-memory incident tracking (restart-campaign hook). Does not
  * touch shipStore — callers reset that separately. */
 export function resetIncidents(): void {
-  lastIncidentHullDamage = 0;
+  lastIncidentDamage = { "aft-module": 0, engineering: 0 };
   stopFuelDrain();
 }
