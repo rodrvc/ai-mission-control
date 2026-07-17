@@ -118,6 +118,29 @@ export function MissionNode({ data, selected }: NodeProps) {
   const { label, kind, status, variant } = data as MissionNodeData;
   const Icon = KIND_ICON[kind];
   const isSubAgent = variant === "sub-agent";
+  const isTool = kind === "tool";
+
+  // Tool nodes are compact circular badges; others are standard cards
+  if (isTool) {
+    return (
+      <div className="flex flex-col items-center gap-1.5" title={label}>
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors ${statusClasses(status)} ${
+            selected ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""
+          }`}
+        >
+          <Handle type="target" position={Position.Top} className="!h-1.5 !w-1.5 !bg-panel-border" />
+          <span aria-hidden className="h-5 w-5 text-text-muted">
+            <Icon />
+          </span>
+        </div>
+        <span className="max-w-[90px] text-center font-mono text-[8px] leading-tight text-text-muted uppercase">
+          {label}
+        </span>
+      </div>
+    );
+  }
+
   const size = isSubAgent ? "w-[104px] min-h-[104px]" : "w-[132px] min-h-[132px]";
   const iconSize = isSubAgent ? "h-7 w-7" : "h-9 w-9";
 
@@ -127,8 +150,37 @@ export function MissionNode({ data, selected }: NodeProps) {
         selected ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""
       }`}
     >
-      <Handle type="target" position={Position.Left} className="!bg-panel-border" />
-      <Handle type="source" position={Position.Right} className="!bg-panel-border" />
+      <Handle type="target" position={Position.Left} id="in" className="!bg-panel-border" />
+      <Handle type="source" position={Position.Right} id="out" className="!bg-panel-border" />
+      {/* Secondary bottom-entry target — used by long bypass edges (e.g.
+          knowledge-specialist -> quality-check) that need to approach from
+          below instead of the left, so they don't cross intervening nodes
+          on the spine. Harmless no-op handle on nodes that don't use it. */}
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="in-bottom"
+        className="!bg-panel-border"
+        style={{ left: "30%" }}
+      />
+      {/* Tool stub — rendered on every agent for uniformity; only wired to an
+          edge for nodes that actually own a tool (see topology.ts). */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="tool"
+        className="!bg-panel-border"
+        style={{ left: "50%" }}
+      />
+      {/* Reject-loop source — only wired for safety-reviewer, harmless no-op
+          handle on every other node. */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="reject"
+        className="!bg-panel-border"
+        style={{ left: "65%" }}
+      />
 
       {isSubAgent && (
         <span className="mb-0.5 rounded-sm bg-accent/15 px-1 font-mono text-[8px] font-bold tracking-widest text-accent uppercase">
