@@ -1,9 +1,12 @@
-// Narrative onboarding emails (D11, D14). E0 arrives on load; E1-E3 arrive
-// together once E0's modal is closed. Body copy uses paragraphs joined by
+// Narrative onboarding emails (D11, D14). E0 arrives on load; E1-E3 are
+// delivered one at a time by the mission queue (lib/store/missionStore.ts,
+// ACU-60) once E0's modal is closed. Body copy uses paragraphs joined by
 // blank lines (markdown-lite) — the reading pane splits on "\n\n". Each
 // mission email's closing hint line nudges the captain toward the command
 // console and, implicitly, toward keywords the intent router
 // (lib/simulation/router.ts) will recognize.
+
+import type { ScenarioId } from "@/lib/types/events";
 
 export interface Email {
   id: string;
@@ -11,8 +14,12 @@ export interface Email {
   subject: string;
   /** Paragraphs separated by a blank line; last paragraph is the signature. */
   body: string;
-  /** Milliseconds after the previous batch is dismissed before this arrives. */
-  arrivesAfter: number;
+  /**
+   * Structural link from this email to a simulation scenario (ACU-60) — the
+   * mission this email represents. Undefined for narrative-only emails (E0)
+   * that don't drive a mission.
+   */
+  missionScenarioId?: ScenarioId;
 }
 
 export const EMAILS: Email[] = [
@@ -28,7 +35,6 @@ export const EMAILS: Email[] = [
       "Godspeed, Captain. The Meridian is yours.",
       "— Mission Command, Sol Relay",
     ].join("\n\n"),
-    arrivesAfter: 0,
   },
   {
     id: "E1",
@@ -42,7 +48,7 @@ export const EMAILS: Email[] = [
       "Transmit your directive to VEGA via the ship console.",
       "— Mission Intelligence, Sol Relay",
     ].join("\n\n"),
-    arrivesAfter: 4000,
+    missionScenarioId: "knowledge",
   },
   {
     id: "E2",
@@ -56,7 +62,7 @@ export const EMAILS: Email[] = [
       "Transmit your directive to VEGA via the ship console.",
       "— Dr. Osei, Flight Surgeon",
     ].join("\n\n"),
-    arrivesAfter: 4000,
+    missionScenarioId: "life-support",
   },
   {
     id: "E3",
@@ -69,6 +75,6 @@ export const EMAILS: Email[] = [
       "Transmit your directive to VEGA via the ship console.",
       "— Navigation Control",
     ].join("\n\n"),
-    arrivesAfter: 4000,
+    missionScenarioId: "navigation",
   },
 ];

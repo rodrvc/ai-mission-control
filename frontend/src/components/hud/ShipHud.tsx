@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SCENARIOS } from "@/data/scenarios";
 import { HULL_BAND_THRESHOLDS, MAX_FUEL, MAX_HULL, MAX_OXYGEN, STARTING_TOKENS } from "@/lib/game/constants";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { getHull, useShipStore } from "@/lib/store/shipStore";
 import { HullShipSilhouette } from "@/components/hud/HullShipSilhouette";
 import { RadialGauge, type GaugeSeverity } from "@/components/hud/RadialGauge";
@@ -52,8 +54,12 @@ export function ShipHud() {
   const fuel = useShipStore((state) => state.fuel);
   const tokens = useShipStore((state) => state.tokens);
   const hull = useShipStore(getHull);
+  const activeMissionScenarioId = useMissionStore(
+    (state) => Object.values(state.missions).find((mission) => mission.status === "active")?.scenarioId ?? null,
+  );
 
   const trend = useTokenTrend(tokens);
+  const activeMissionLabel = SCENARIOS.find((scenario) => scenario.id === activeMissionScenarioId)?.label ?? null;
 
   const oxygenPercent = (oxygen / MAX_OXYGEN) * 100;
   const fuelPercent = (fuel / MAX_FUEL) * 100;
@@ -68,6 +74,17 @@ export function ShipHud() {
 
   return (
     <div className="flex flex-wrap items-stretch gap-3 border-b border-panel-border bg-panel-raised/40 px-6 py-3">
+      {activeMissionLabel && (
+        <div className="flex min-w-[140px] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5">
+          <span className="font-mono text-[10px] font-semibold tracking-widest text-accent uppercase">
+            Active Mission
+          </span>
+          <span className="animate-mc-pulse font-mono text-sm font-semibold text-accent">
+            {activeMissionLabel}
+          </span>
+        </div>
+      )}
+
       <HudCard title="O2">
         <RadialGauge
           percent={oxygenPercent}

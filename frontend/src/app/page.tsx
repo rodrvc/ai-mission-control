@@ -16,6 +16,7 @@ import { useShipTick } from "@/lib/hooks/useShipTick";
 import { routePrompt } from "@/lib/simulation/router";
 import { startRun, type RunHandle } from "@/lib/simulation/engine";
 import { useInboxStore } from "@/lib/store/inboxStore";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { useRunStore } from "@/lib/store/runStore";
 import { useShipStore } from "@/lib/store/shipStore";
 
@@ -31,6 +32,7 @@ export default function Home() {
   const resetShip = useShipStore((state) => state.reset);
   const resetInbox = useInboxStore((state) => state.reset);
   const deliverWelcome = useInboxStore((state) => state.deliverWelcome);
+  const resetMissions = useMissionStore((state) => state.reset);
 
   useShipTick();
   useResourceSounds();
@@ -64,12 +66,13 @@ export default function Home() {
     resetShip();
     resetRun();
     resetInbox();
+    resetMissions();
     resetIncidents();
     // Header's own mount effect only fires once, so after a restart (no
     // remount) we re-trigger the welcome email delivery here to restart the
     // narrative sequence (D11/D15 restart requirement).
     setTimeout(deliverWelcome, 2000);
-  }, [resetShip, resetRun, resetInbox, deliverWelcome]);
+  }, [resetShip, resetRun, resetInbox, resetMissions, deliverWelcome]);
 
   const handleAbort = useCallback(() => {
     handleRef.current?.cancel();

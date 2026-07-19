@@ -9,6 +9,8 @@
 import { MISSION_TOKEN_REWARD, NODE_TOKEN_COST } from "@/lib/game/constants";
 import { resolveLifeSupportIncident, stopFuelDrain } from "@/lib/game/incidents";
 import { playSound } from "@/lib/sound/sounds";
+import { useInboxStore } from "@/lib/store/inboxStore";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { useShipStore } from "@/lib/store/shipStore";
 import type { RunEvent, ScenarioId } from "@/lib/types/events";
 
@@ -64,6 +66,14 @@ export function createEconomyBridge(
         stopFuelDrain();
       }
       playSound("missionComplete");
+
+      // ACU-60: mark the linked mission completed and release the next one
+      // in the queue — delivery is driven by mission-complete, not a timer.
+      const mission = useMissionStore.getState().findMissionByScenario(scenarioId);
+      if (mission) {
+        useMissionStore.getState().completeMission(mission.id);
+        useInboxStore.getState().deliverNextMission();
+      }
     }
 
     applyToStore(event);

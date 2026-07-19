@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { EMAILS } from "@/data/emails";
-import { applyLifeSupportIncident, resetIncidents, startFuelDrain } from "@/lib/game/incidents";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { playSound } from "@/lib/sound/sounds";
 
-/** Ids of the mission emails delivered together after E0 is read (D11). */
+/** Ids of the mission emails, in narrative order (used only as a fallback
+ * list — actual delivery order comes from missionStore's queue). */
 const MISSION_EMAIL_IDS = ["E1", "E2", "E3"];
 
 export interface InboxState {
@@ -17,19 +18,7 @@ export interface InboxState {
   hasShownConsoleHint: boolean;
   /** True while the console hint should be visibly glowing. */
   isConsoleHintActive: boolean;
-  /**
-   * True as soon as the mission-batch delivery timer has been scheduled
-   * (set synchronously, before the timer fires). Prevents `closeModal` from
-   * scheduling the same batch again if the inbox is closed/reopened/closed
-   * again inside the delay window.
-   */
-  missionsScheduled: boolean;
 }
-
-/** Handle for the pending mission-batch delivery timer, tracked outside the
- * store state so `reset()` can cancel it — a restart inside the 4s window
- * must not let the stale timer deliver the batch into the fresh campaign. */
-let missionBatchTimer: ReturnType<typeof setTimeout> | null = null;
 
 export interface InboxActions {
   /** Deliver E0. Call once on app mount. */
@@ -38,6 +27,10 @@ export interface InboxActions {
   closeModal: () => void;
   selectEmail: (emailId: string) => void;
   dismissConsoleHint: () => void;
+  /** Delivers the next mission email in missionStore's queue, if any. Called
+   * on E0 close (queue start) and again whenever a mission completes
+   * (ACU-60: replaces the old fixed setTimeout batch delivery). */
+  deliverNextMission: () => void;
   /** Restores initial inbox state (used by restart-campaign, D15). */
   reset: () => void;
 }
@@ -49,7 +42,6 @@ const initialState: InboxState = {
   selectedEmailId: null,
   hasShownConsoleHint: false,
   isConsoleHintActive: false,
-  missionsScheduled: false,
 };
 
 export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
@@ -67,36 +59,19 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
   openModal: () => set({ isModalOpen: true }),
 
   closeModal: () => {
-    const { deliveredIds, unreadIds, missionsScheduled } = get();
+    const { deliveredIds, unreadIds } = get();
     set({ isModalOpen: false, selectedEmailId: null });
 
-    // First close after E0 was read triggers the mission batch (D11): all
-    // three mission emails arrive together, no gating between them.
+    // First close after E0 was read starts the mission delivery queue
+    // (ACU-60): order is shuffled once, one mission delivered at a time.
     const welcomeWasRead = deliveredIds.includes("E0") && !unreadIds.includes("E0");
     const missionsAlreadyDelivered = MISSION_EMAIL_IDS.some((id) => deliveredIds.includes(id));
-    if (welcomeWasRead && !missionsAlreadyDelivered && !missionsScheduled) {
-      // Flip the flag synchronously so a close/reopen/close within the delay
-      // window can't schedule a second timer (deliveredIds/unreadIds only
-      // reflect the batch once the timer below actually fires).
-      set({ missionsScheduled: true });
-      const delay = EMAILS.find((email) => email.id === "E1")?.arrivesAfter ?? 4000;
-      missionBatchTimer = setTimeout(() => {
-        missionBatchTimer = null;
-        set((state) => {
-          const newIds = MISSION_EMAIL_IDS.filter((id) => !state.deliveredIds.includes(id));
-          if (newIds.length === 0) return state;
-          return {
-            deliveredIds: [...state.deliveredIds, ...newIds],
-            unreadIds: [...state.unreadIds, ...newIds],
-          };
-        });
-        // Mission batch has landed (D18): E2/E3's resource effects begin the
-        // moment the emails arrive, not when they're opened — the ship
-        // doesn't wait for the captain to read the report.
-        applyLifeSupportIncident();
-        startFuelDrain();
-        playSound("mailArrive");
-      }, delay);
+    if (welcomeWasRead && !missionsAlreadyDelivered) {
+      const missionStore = useMissionStore.getState();
+      if (!missionStore.queueStarted) {
+        missionStore.startDeliveryQueue();
+        get().deliverNextMission();
+      }
       return;
     }
 
@@ -115,16 +90,32 @@ export const useInboxStore = create<InboxState & InboxActions>((set, get) => ({
       selectedEmailId: emailId,
       unreadIds: state.unreadIds.filter((id) => id !== emailId),
     }));
+
+    // Reading a mission email activates that mission (ACU-60): resource
+    // damage/drain now starts as a consequence of the captain reading the
+    // report, not silently when the email lands in the mailbox.
+    const email = EMAILS.find((candidate) => candidate.id === emailId);
+    if (email?.missionScenarioId) {
+      useMissionStore.getState().activateMission(emailId);
+    }
   },
 
   dismissConsoleHint: () => set({ isConsoleHintActive: false }),
 
+  deliverNextMission: () => {
+    const missionStore = useMissionStore.getState();
+    const nextMissionId = missionStore.peekNextMissionId();
+    if (!nextMissionId) return;
+    if (get().deliveredIds.includes(nextMissionId)) return;
+    missionStore.advanceQueue();
+    set((state) => ({
+      deliveredIds: [...state.deliveredIds, nextMissionId],
+      unreadIds: [...state.unreadIds, nextMissionId],
+    }));
+    playSound("mailArrive");
+  },
+
   reset: () => {
-    if (missionBatchTimer !== null) {
-      clearTimeout(missionBatchTimer);
-      missionBatchTimer = null;
-    }
-    resetIncidents();
     set({ ...initialState });
   },
 }));
