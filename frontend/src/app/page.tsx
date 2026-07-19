@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { DebugPanel } from "@/components/debug/DebugPanel";
+import { DamageCauseToast } from "@/components/hud/DamageCauseToast";
 import { GameOverOverlay } from "@/components/hud/GameOverOverlay";
 import { ShipHud } from "@/components/hud/ShipHud";
 import { EventLogStrip } from "@/components/layout/EventLogStrip";
@@ -126,6 +127,7 @@ export default function Home() {
       <div className="flex h-full flex-col" inert={isGameOver}>
         <Header isRunning={isRunning} onAbort={handleAbort} />
         <ShipHud />
+        <DamageCauseToast />
         <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
           <GraphCanvas onApprove={handleApprove} onReject={handleReject} />
           <SidePanel onApprove={handleApprove} onReject={handleReject} />
