@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InboxModal } from "@/components/inbox/InboxModal";
 import { MailButton } from "@/components/inbox/MailButton";
 import { SHIP_NAME } from "@/data/narrative";
@@ -18,6 +18,11 @@ const RUN_STATUS_LABEL: Record<string, string> = {
   awaiting_approval: "Awaiting captain authorization…",
 };
 
+/** How long the header stays lit for the first transmission's arrival
+ * (D-ACU59) — mirrors MailButton's own halo duration so both cues fade in
+ * lockstep. */
+const FIRST_ARRIVAL_HEADER_GLOW_MS = 4000;
+
 /**
  * Top mission bar: ship name, compact run status + ABORT while a run is
  * active, mail, and mute. The command console itself lives in the VegaWidget
@@ -27,6 +32,7 @@ export function Header({ isRunning, onAbort }: HeaderProps) {
   const runStatus = useRunStore((state) => state.runStatus);
 
   const deliverWelcome = useInboxStore((state) => state.deliverWelcome);
+  const unreadCount = useInboxStore((state) => state.unreadIds.length);
   const muted = useShipStore((state) => state.muted);
   const toggleMuted = useShipStore((state) => state.toggleMuted);
 
@@ -36,8 +42,26 @@ export function Header({ isRunning, onAbort }: HeaderProps) {
     return () => clearTimeout(timer);
   }, [deliverWelcome]);
 
+  // First-transmission header glow (D-ACU59): briefly illuminates the whole
+  // mission bar when the first email lands, reinforcing the mail badge's own
+  // halo with a ship-alert-style header light rather than a generic tooltip.
+  const hasSeenMail = useRef(false);
+  const [isHeaderLit, setIsHeaderLit] = useState(false);
+  useEffect(() => {
+    if (unreadCount > 0 && !hasSeenMail.current) {
+      hasSeenMail.current = true;
+      setIsHeaderLit(true);
+      const timer = setTimeout(() => setIsHeaderLit(false), FIRST_ARRIVAL_HEADER_GLOW_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [unreadCount]);
+
   return (
-    <header className="flex flex-wrap items-center gap-4 border-b border-panel-border bg-panel px-6 py-4">
+    <header
+      className={`flex flex-wrap items-center gap-4 border-b bg-panel px-6 py-4 transition-colors duration-700 ${
+        isHeaderLit ? "border-accent/60 shadow-[inset_0_-2px_20px_-4px_rgba(45,212,191,0.35)]" : "border-panel-border"
+      }`}
+    >
       <h1 className="font-mono text-sm font-semibold tracking-widest text-foreground uppercase">
         {SHIP_NAME} <span className="text-accent">—</span> Mission Control
       </h1>

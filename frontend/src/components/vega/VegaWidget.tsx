@@ -22,6 +22,14 @@ const RUN_STATUS_LABEL: Record<string, string> = {
   awaiting_approval: "Awaiting captain authorization…",
 };
 
+/** Delay before VEGA's proactive boot line appears (D-ACU59): long enough
+ * to read as a deliberate greeting, short enough to catch the captain before
+ * they go looking for the FAB themselves. */
+const BOOT_LINE_APPEAR_DELAY_MS = 1500;
+/** How long the boot line stays up before it self-dismisses. */
+const BOOT_LINE_VISIBLE_MS = 5000;
+const BOOT_LINE = "Captain on the bridge. Standing by — you will want to check your mail first.";
+
 /** Pulls the most recent completed run's final response out of the flat
  * event log — finalResponse only ever appears on a "completed" run_status
  * event, never on individual node_update events. */
@@ -74,6 +82,7 @@ export function VegaWidget({
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<ConversationExchange[]>([]);
+  const [isBootLineVisible, setIsBootLineVisible] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const dismissConsoleHint = useInboxStore((state) => state.dismissConsoleHint);
@@ -111,6 +120,20 @@ export function VegaWidget({
     if (isOpen) textareaRef.current?.focus();
   }, [isOpen]);
 
+  // Proactive boot sequence (D-ACU59): VEGA announces itself shortly after
+  // mount instead of waiting for the captain to discover the FAB on their
+  // own. Auto-dismisses; cancelled if the captain opens the widget first.
+  useEffect(() => {
+    const appearTimer = setTimeout(() => setIsBootLineVisible(true), BOOT_LINE_APPEAR_DELAY_MS);
+    return () => clearTimeout(appearTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!isBootLineVisible) return;
+    const dismissTimer = setTimeout(() => setIsBootLineVisible(false), BOOT_LINE_VISIBLE_MS);
+    return () => clearTimeout(dismissTimer);
+  }, [isBootLineVisible]);
+
   // Esc closes regardless of which control inside the widget has focus
   // (textarea, AUTHORIZE/DENY, etc.) — matching InboxModal's document-level
   // listener rather than relying on a single element's onKeyDown.
@@ -125,6 +148,7 @@ export function VegaWidget({
 
   const open = () => {
     setIsOpen(true);
+    setIsBootLineVisible(false);
     dismissConsoleHint();
   };
   const close = () => setIsOpen(false);
@@ -275,6 +299,18 @@ export function VegaWidget({
 
       {/* Floating action button */}
       <div className="pointer-events-auto relative">
+        {isBootLineVisible && !isOpen && (
+          <div
+            role="status"
+            className="animate-mc-pulse pointer-events-none absolute right-0 bottom-full z-10 mb-2 w-64 rounded-md border border-accent/50 bg-panel-raised px-3 py-2 font-mono text-xs text-accent shadow-lg"
+          >
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-1 right-6 h-2 w-2 rotate-45 border-r border-b border-accent/50 bg-panel-raised"
+            />
+            {BOOT_LINE}
+          </div>
+        )}
         <ConsoleHint />
         <button
           type="button"

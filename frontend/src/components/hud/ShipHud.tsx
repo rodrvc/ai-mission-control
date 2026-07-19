@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HULL_BAND_THRESHOLDS, MAX_FUEL, MAX_HULL, MAX_OXYGEN, STARTING_TOKENS } from "@/lib/game/constants";
 import { getHull, useShipStore } from "@/lib/store/shipStore";
+import { useInboxStore } from "@/lib/store/inboxStore";
 import { HullShipSilhouette } from "@/components/hud/HullShipSilhouette";
 import { RadialGauge, type GaugeSeverity } from "@/components/hud/RadialGauge";
 
@@ -53,6 +54,13 @@ export function ShipHud() {
   const tokens = useShipStore((state) => state.tokens);
   const hull = useShipStore(getHull);
 
+  // Standby state (D-ACU59): the HUD starts dimmed/powered-down and lights
+  // up the moment the first transmission (E0) lands — the causal "systems
+  // wake because mail arrived" beat replaces a HUD that's fully lit from
+  // frame one with nothing to draw the eye.
+  const hasMail = useInboxStore((state) => state.deliveredIds.length > 0);
+  const isStandby = !hasMail;
+
   const trend = useTokenTrend(tokens);
 
   const oxygenPercent = (oxygen / MAX_OXYGEN) * 100;
@@ -66,15 +74,37 @@ export function ShipHud() {
   const oxygenSeverity = isLeakingFast ? "critical" : severityForPercent(oxygenPercent);
   const fuelSeverity = severityForPercent(fuelPercent);
 
+  // While in standby, gauges report full/neutral readings rather than the
+  // live (already-full) simulation values — this is cosmetic power-down, not
+  // a change to the underlying resource model.
+  const displayOxygenSeverity: GaugeSeverity = isStandby ? "nominal" : oxygenSeverity;
+  const displayFuelSeverity: GaugeSeverity = isStandby ? "nominal" : fuelSeverity;
+  const displayTokensSeverity: GaugeSeverity = isStandby
+    ? "nominal"
+    : severityForPercent(tokensPercent);
+
   return (
-    <div className="flex flex-wrap items-stretch gap-3 border-b border-panel-border bg-panel-raised/40 px-6 py-3">
+    <div
+      className={`flex flex-wrap items-stretch gap-3 border-b border-panel-border bg-panel-raised/40 px-6 py-3 transition-opacity duration-700 ${
+        isStandby ? "opacity-40 grayscale-[0.6]" : "opacity-100"
+      }`}
+    >
+      {isStandby && (
+        <div className="flex w-full items-center gap-2 pb-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-text-muted" aria-hidden="true" />
+          <span className="font-mono text-[10px] font-semibold tracking-widest text-text-muted uppercase">
+            Systems standby — awaiting first transmission
+          </span>
+        </div>
+      )}
+
       <HudCard title="O2">
         <RadialGauge
-          percent={oxygenPercent}
-          severity={oxygenSeverity}
-          centerLabel={`${Math.round(oxygenPercent)}%`}
+          percent={isStandby ? 100 : oxygenPercent}
+          severity={displayOxygenSeverity}
+          centerLabel={isStandby ? "—" : `${Math.round(oxygenPercent)}%`}
         />
-        {isLeaking && (
+        {!isStandby && isLeaking && (
           <span className="animate-mc-pulse rounded border border-danger bg-danger/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-widest text-danger uppercase">
             Pressure leak
           </span>
@@ -83,9 +113,9 @@ export function ShipHud() {
 
       <HudCard title="Fuel">
         <RadialGauge
-          percent={fuelPercent}
-          severity={fuelSeverity}
-          centerLabel={`${Math.round(fuelPercent)}%`}
+          percent={isStandby ? 100 : fuelPercent}
+          severity={displayFuelSeverity}
+          centerLabel={isStandby ? "—" : `${Math.round(fuelPercent)}%`}
         />
       </HudCard>
 
@@ -94,14 +124,16 @@ export function ShipHud() {
           <HullShipSilhouette sections={hullSections} />
           <span
             className={`font-mono text-sm font-semibold tabular-nums ${
-              severityForPercent(hullPercent) === "critical"
-                ? "text-danger"
-                : severityForPercent(hullPercent) === "warning"
-                  ? "text-warning"
-                  : "text-accent"
+              isStandby
+                ? "text-text-muted"
+                : severityForPercent(hullPercent) === "critical"
+                  ? "text-danger"
+                  : severityForPercent(hullPercent) === "warning"
+                    ? "text-warning"
+                    : "text-accent"
             }`}
           >
-            {Math.round(hullPercent)}%
+            {isStandby ? "—" : `${Math.round(hullPercent)}%`}
           </span>
         </div>
       </HudCard>
@@ -109,11 +141,11 @@ export function ShipHud() {
       <HudCard title="Tokens">
         <div className="relative flex items-center justify-center">
           <RadialGauge
-            percent={tokensPercent}
-            severity={severityForPercent(tokensPercent)}
-            centerLabel={`${tokens}`}
+            percent={isStandby ? 100 : tokensPercent}
+            severity={displayTokensSeverity}
+            centerLabel={isStandby ? "—" : `${tokens}`}
           />
-          {trend && (
+          {!isStandby && trend && (
             <span
               className={`absolute -top-1 -right-1 font-mono text-[11px] font-semibold ${
                 trend === "up" ? "text-success" : "text-danger"
