@@ -3,6 +3,7 @@
 // chain. Owns run identity (runId/seq) and HITL pausing/resuming — scenario
 // scripts stay pure data (see lib/simulation/types.ts).
 
+import { SCENARIO_HINTS } from "@/data/scenarios";
 import { irrelevantScript } from "@/lib/simulation/scenarios/irrelevant";
 import { knowledgeScript } from "@/lib/simulation/scenarios/knowledge";
 import { lifeSupportScript } from "@/lib/simulation/scenarios/life-support";
@@ -36,6 +37,18 @@ const ROUTING_REASON: Record<ScenarioId, string> = {
   irrelevant: "No life-support, navigation, or mission-intel keywords matched → declining request.",
 };
 
+/** ACU-61: VEGA's decline copy for an "irrelevant" prompt. When the operator
+ * has an established mission domain (the last non-"irrelevant" prompt this
+ * session), nudge toward it instead of a flat generic rejection — each failed
+ * attempt becomes a dosed hint rather than a dead end. */
+function buildIrrelevantResponse(activeDomain: Exclude<ScenarioId, "irrelevant"> | null): string {
+  if (activeDomain === null) {
+    return "VEGA: That request is not relevant to the current mission. The Meridian's crew handles life support, navigation, and mission intelligence tasks.";
+  }
+  const { nudge } = SCENARIO_HINTS[activeDomain];
+  return `VEGA: That's not something I can route, Captain — did you mean to report on ${nudge}?`;
+}
+
 export interface RunHandle {
   /** Stop playback immediately; no further events will be emitted. */
   cancel: () => void;
@@ -54,11 +67,17 @@ export interface RunHandle {
  * HITL (D13, narrative): navigation always pauses at the review gate for
  * captain authorization. life-support keeps its scripted auto reject/retry.
  * knowledge and irrelevant have no review gate at all.
+ *
+ * `activeDomain` (ACU-61): the last mission domain the operator routed into
+ * this session (null if none yet). Only consulted when `scenarioId` is
+ * "irrelevant", to tailor VEGA's decline copy toward that domain instead of
+ * a flat generic rejection.
  */
 export function startRun(
   scenarioId: ScenarioId,
   promptText: string,
   applyEvent: (event: RunEvent) => void,
+  activeDomain: Exclude<ScenarioId, "irrelevant"> | null = null,
 ): RunHandle {
   const script = SCRIPTS[scenarioId];
   const runId = createRunId();
@@ -87,6 +106,13 @@ export function startRun(
       } else if (event.status === "completed" || event.status === "failed") {
         event = { ...event, reason: ROUTING_REASON[scenarioId] };
       }
+    } else if (
+      event.type === "run_status" &&
+      event.status === "completed" &&
+      event.finalResponse &&
+      scenarioId === "irrelevant"
+    ) {
+      event = { ...event, finalResponse: buildIrrelevantResponse(activeDomain) };
     }
     applyEvent({
       ...event,

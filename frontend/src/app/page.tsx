@@ -26,6 +26,11 @@ export default function Home() {
   const resetRun = useRunStore((state) => state.resetRun);
   const selectNode = useRunStore((state) => state.selectNode);
   const setScenario = useRunStore((state) => state.setScenario);
+  const scenarioIdRef = useRef(useRunStore.getState().scenarioId);
+  useEffect(
+    () => useRunStore.subscribe((state) => { scenarioIdRef.current = state.scenarioId; }),
+    [],
+  );
 
   const tokens = useShipStore((state) => state.tokens);
   const isGameOver = useShipStore((state) => state.isGameOver);
@@ -47,6 +52,11 @@ export default function Home() {
       if (tokens <= 0 || isGameOver) return;
       const routedScenario = routePrompt(prompt);
       const missionScenario = routedScenario === "irrelevant" ? null : routedScenario;
+      // Last established mission domain, captured before setScenario below
+      // overwrites it — used to tailor VEGA's decline copy (ACU-61) when this
+      // prompt itself turns out to be "irrelevant".
+      const previousDomain = scenarioIdRef.current;
+      const activeDomain = previousDomain === "irrelevant" ? null : previousDomain;
       handleRef.current?.cancel();
       resetRun();
       selectNode(null);
@@ -55,7 +65,7 @@ export default function Home() {
       // reducer, billing per-node token costs and granting mission rewards
       // without runStore itself knowing about tokens/resources.
       const economyApplyEvent = createEconomyBridge(missionScenario, applyEvent);
-      handleRef.current = startRun(routedScenario, prompt, economyApplyEvent);
+      handleRef.current = startRun(routedScenario, prompt, economyApplyEvent, activeDomain);
     },
     [applyEvent, resetRun, selectNode, setScenario, tokens, isGameOver],
   );
