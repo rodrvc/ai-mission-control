@@ -1,8 +1,9 @@
-// Email→indicator effects (D18). Each incident has an explicit start/stop
-// pair, called from the mission-batch delivery point (start) and the
-// matching mission's run_status:completed handler (stop). Kept separate
-// from runStore/shipStore so those stay single-purpose (SRP) — this module
-// is the narrative glue between "an email arrived" / "a mission finished"
+// Email→indicator effects (D18, ACU-60). Each incident has an explicit
+// start/stop pair, called when the player activates a mission (reads/selects
+// that mission's email — lib/store/missionStore.ts) and when that mission's
+// run_status:completed handler fires (economy.ts). Kept separate from
+// runStore/shipStore so those stay single-purpose (SRP) — this module is the
+// narrative glue between "the captain read a mission" / "a mission finished"
 // and the resource simulation.
 
 import { FUEL_DRAIN_RATE_PER_SECOND, MAX_OXYGEN, TICK_INTERVAL_MS } from "@/lib/game/constants";
@@ -34,12 +35,12 @@ let lastIncidentDamage: { "aft-module": number; engineering: number } = {
 };
 
 /**
- * Applies the E2 hull hit the moment the mission batch is delivered: damages
- * aft-module and engineering specifically (D20 — "the E2 incident damages
- * the Aft Module specifically", extended here to a secondary engineering hit
- * so the arithmetic lands on the documented global target). Never re-applies
- * twice for the same delivery (guarded by the caller, which only calls this
- * once per campaign per delivery).
+ * Applies the E2 hull hit the moment the captain activates that mission
+ * (D20 — "the E2 incident damages the Aft Module specifically", extended
+ * here to a secondary engineering hit so the arithmetic lands on the
+ * documented global target). Never re-applies twice per campaign (guarded by
+ * the caller, missionStore.activateMission, which only calls this once per
+ * mission).
  */
 export function applyLifeSupportIncident(): void {
   const { hullSections, damageHull } = useShipStore.getState();
@@ -79,8 +80,9 @@ export function resolveLifeSupportIncident(): void {
 
 let fuelDrainTimer: ReturnType<typeof setInterval> | null = null;
 
-/** Starts the slow fuel drain the moment the mission batch is delivered.
- * Idempotent — calling it while already running is a no-op. */
+/** Starts the slow fuel drain the moment the captain activates the
+ * navigation mission. Idempotent — calling it while already running is a
+ * no-op. */
 export function startFuelDrain(): void {
   if (fuelDrainTimer !== null) return;
   const drainPerTick = FUEL_DRAIN_RATE_PER_SECOND * (TICK_INTERVAL_MS / 1000);

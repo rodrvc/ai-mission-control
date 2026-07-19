@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SCENARIOS } from "@/data/scenarios";
 import { HULL_BAND_THRESHOLDS, MAX_FUEL, MAX_HULL, MAX_OXYGEN, STARTING_TOKENS } from "@/lib/game/constants";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { getHull, useShipStore } from "@/lib/store/shipStore";
 import { useInboxStore } from "@/lib/store/inboxStore";
 import { HullShipSilhouette } from "@/components/hud/HullShipSilhouette";
@@ -53,6 +55,9 @@ export function ShipHud() {
   const fuel = useShipStore((state) => state.fuel);
   const tokens = useShipStore((state) => state.tokens);
   const hull = useShipStore(getHull);
+  const activeMissionScenarioId = useMissionStore(
+    (state) => Object.values(state.missions).find((mission) => mission.status === "active")?.scenarioId ?? null,
+  );
 
   // Standby state (D-ACU59): the HUD starts dimmed/powered-down and lights
   // up the moment the first transmission (E0) lands — the causal "systems
@@ -62,6 +67,7 @@ export function ShipHud() {
   const isStandby = !hasMail;
 
   const trend = useTokenTrend(tokens);
+  const activeMissionLabel = SCENARIOS.find((scenario) => scenario.id === activeMissionScenarioId)?.label ?? null;
 
   const oxygenPercent = (oxygen / MAX_OXYGEN) * 100;
   const fuelPercent = (fuel / MAX_FUEL) * 100;
@@ -94,6 +100,17 @@ export function ShipHud() {
           <span className="h-1.5 w-1.5 rounded-full bg-text-muted" aria-hidden="true" />
           <span className="font-mono text-[10px] font-semibold tracking-widest text-text-muted uppercase">
             Systems standby — awaiting first transmission
+          </span>
+        </div>
+      )}
+
+      {activeMissionLabel && (
+        <div className="flex min-w-[140px] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5">
+          <span className="font-mono text-[10px] font-semibold tracking-widest text-accent uppercase">
+            Active Mission
+          </span>
+          <span className="animate-mc-pulse font-mono text-sm font-semibold text-accent">
+            {activeMissionLabel}
           </span>
         </div>
       )}
