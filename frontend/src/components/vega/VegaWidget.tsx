@@ -5,12 +5,12 @@ import { ConsoleHint } from "@/components/inbox/ConsoleHint";
 import { SHIP_AI_NAME } from "@/data/narrative";
 import { DEFAULT_CONSOLE_PLACEHOLDER, SCENARIO_HINTS } from "@/data/scenarios";
 import { useInboxStore } from "@/lib/store/inboxStore";
+import { useMissionStore } from "@/lib/store/missionStore";
 import { useRunStore } from "@/lib/store/runStore";
 import type { RunStatus } from "@/lib/store/runStore";
 import type { ScenarioId } from "@/lib/types/events";
 
-/** Console placeholder: once a mission domain has been established (the last
- * non-"irrelevant" prompt routed this session), show that domain's partial
+/** Console placeholder: while a mission is active, show that domain's partial
  * example instead of the generic prompt — guides tone/shape without handing
  * over the winning keyword (see SCENARIO_HINTS, lib/simulation/router.ts). */
 function consolePlaceholder(scenarioId: Exclude<ScenarioId, "irrelevant"> | null): string {
@@ -90,7 +90,15 @@ export function VegaWidget({
   const runStatus = useRunStore((state) => state.runStatus);
   const events = useRunStore((state) => state.events);
   const runId = useRunStore((state) => state.runId);
-  const scenarioId = useRunStore((state) => state.scenarioId);
+  // A mission's scenarioId is never "irrelevant" by construction (see
+  // MISSION_DEFINITIONS in missionStore.ts).
+  const activeMissionScenarioId = useMissionStore(
+    (state) =>
+      (Object.values(state.missions).find((mission) => mission.status === "active")?.scenarioId ?? null) as Exclude<
+        ScenarioId,
+        "irrelevant"
+      > | null,
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<ConversationExchange[]>([]);
@@ -292,7 +300,7 @@ export function VegaWidget({
                     }
                   }}
                   rows={3}
-                  placeholder={consolePlaceholder(scenarioId === "irrelevant" ? null : scenarioId)}
+                  placeholder={consolePlaceholder(activeMissionScenarioId)}
                   className="w-full resize-none rounded-md border border-panel-border bg-panel-raised px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-text-muted focus:border-accent"
                 />
                 <button

@@ -37,10 +37,9 @@ const ROUTING_REASON: Record<ScenarioId, string> = {
   irrelevant: "No life-support, navigation, or mission-intel keywords matched → declining request.",
 };
 
-/** ACU-61: VEGA's decline copy for an "irrelevant" prompt. When the operator
- * has an established mission domain (the last non-"irrelevant" prompt this
- * session), nudge toward it instead of a flat generic rejection — each failed
- * attempt becomes a dosed hint rather than a dead end. */
+/** ACU-61: VEGA's decline copy for an "irrelevant" prompt. When a mission is
+ * currently active, nudge toward its domain instead of a flat generic
+ * rejection — each failed attempt becomes a dosed hint rather than a dead end. */
 function buildIrrelevantResponse(activeDomain: Exclude<ScenarioId, "irrelevant"> | null): string {
   if (activeDomain === null) {
     return "VEGA: That request is not relevant to the current mission. The Meridian's crew handles life support, navigation, and mission intelligence tasks.";

@@ -27,11 +27,6 @@ export default function Home() {
   const resetRun = useRunStore((state) => state.resetRun);
   const selectNode = useRunStore((state) => state.selectNode);
   const setScenario = useRunStore((state) => state.setScenario);
-  const scenarioIdRef = useRef(useRunStore.getState().scenarioId);
-  useEffect(
-    () => useRunStore.subscribe((state) => { scenarioIdRef.current = state.scenarioId; }),
-    [],
-  );
 
   const tokens = useShipStore((state) => state.tokens);
   const isGameOver = useShipStore((state) => state.isGameOver);
@@ -53,11 +48,13 @@ export default function Home() {
       if (tokens <= 0 || isGameOver) return;
       const routedScenario = routePrompt(prompt);
       const missionScenario = routedScenario === "irrelevant" ? null : routedScenario;
-      // Last established mission domain, captured before setScenario below
-      // overwrites it — used to tailor VEGA's decline copy (ACU-61) when this
-      // prompt itself turns out to be "irrelevant".
-      const previousDomain = scenarioIdRef.current;
-      const activeDomain = previousDomain === "irrelevant" ? null : previousDomain;
+      // The currently active mission's domain — used to tailor VEGA's decline
+      // copy (ACU-61) when this prompt turns out to be "irrelevant". A
+      // mission's scenarioId is never "irrelevant" by construction (see
+      // MISSION_DEFINITIONS in missionStore.ts).
+      const activeMissionScenarioId = useMissionStore.getState().getActiveMission()?.scenarioId ?? null;
+      const activeDomain =
+        activeMissionScenarioId === "irrelevant" ? null : activeMissionScenarioId;
       handleRef.current?.cancel();
       resetRun();
       selectNode(null);
