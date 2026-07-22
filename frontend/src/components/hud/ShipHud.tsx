@@ -15,6 +15,26 @@ function severityForPercent(percent: number): GaugeSeverity {
   return "nominal";
 }
 
+/**
+ * Small directional arrow badge for the token trend indicator (D-cosmetic
+ * fix): a proper SVG glyph in a filled circular chip, matching the HUD's
+ * SVG icon language (RadialGauge, HullShipSilhouette) instead of a raw
+ * Unicode ▲/▼ character sitting bare over the gauge ring.
+ */
+function TrendArrowIcon({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 8 8"
+      aria-hidden="true"
+      className={direction === "down" ? "rotate-180" : undefined}
+    >
+      <path d="M4 0.5 L7.5 6.5 L0.5 6.5 Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Tracks the previous tokens value to render a tiny +/- trend indicator. */
 function useTokenTrend(tokens: number): "up" | "down" | null {
   const previous = useRef(tokens);
@@ -164,11 +184,11 @@ export function ShipHud() {
           />
           {!isStandby && trend && (
             <span
-              className={`absolute -top-1 -right-1 font-mono text-[11px] font-semibold ${
+              className={`absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-panel bg-panel-raised ${
                 trend === "up" ? "text-success" : "text-danger"
               }`}
             >
-              {trend === "up" ? "▲" : "▼"}
+              <TrendArrowIcon direction={trend} />
             </span>
           )}
         </div>
