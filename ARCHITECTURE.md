@@ -82,17 +82,35 @@ interface RunStatusEvent {
 type RunEvent = NodeUpdateEvent | RunStatusEvent;
 ```
 
-HITL: with manual approval ON, after `safety-reviewer` emits `waiting_review` the engine
-emits `run_status: awaiting_approval` and pauses. UI shows Approve/Reject buttons;
-the decision resumes the run (Phase 1: resumes the script on the approve/reject branch;
-Phase 2: POST `/runs/{id}/approval` → LangGraph interrupt resume).
+HITL: per D13, whether a run pauses is a property of the mission script/graph, not a
+manual-approval toggle (that toggle was removed in D13). When the active mission calls
+for it, after `safety-reviewer` emits `waiting_review` the engine emits `run_status:
+awaiting_approval` and pauses. UI shows Approve/Reject buttons; the decision resumes the
+run (Phase 1: resumes the script on the approve/reject branch; Phase 2, implemented for
+life-support: `POST /runs/{id}/approval` resumes a real LangGraph `interrupt()`).
 
 ## Backend API (Phase 2)
 
-- `GET  /scenarios` — list of scenarios
-- `POST /runs` `{scenarioId, manualApproval: bool}` → `{runId}`
-- `GET  /runs/{runId}/events` — SSE stream of RunEvent
-- `POST /runs/{runId}/approval` `{approved: bool}`
+Implemented for the **life-support** mission only; every other prompt still runs on the
+Phase 1 frontend simulator (see D12).
+
+- `GET  /scenarios` — **derogated (D12)**: the scenario picker is gone, replaced by the
+  free-text prompt router. No scenario listing endpoint.
+- `POST /runs` `{prompt: string, scenarioId?: string}` → `{runId?: string, scenario:
+  "life-support" | "unsupported"}`. The backend runs its own router over `prompt`; if it
+  doesn't resolve to `life-support`, the response is `{scenario: "unsupported"}` with no
+  `runId`, and the frontend falls back to the simulator. No `manualApproval` field —
+  derogated by D13, HITL is hardwired per mission.
+- `GET  /runs/{runId}/events` — SSE stream of RunEvent, one event per `event: message` /
+  `data:` line. Shape unchanged — the frozen contract (D4) above is intact.
+- `POST /runs/{runId}/approval` `{approved: bool}` — resumes the paused LangGraph run by
+  resuming its `interrupt()` call with the decision.
+- `GET  /healthz` → `{ok: bool, llm: "openai" | "simulated"}` — reports whether the
+  backend is running the real OpenAI-backed graph or the simulated-tools fallback (no
+  `OPENAI_API_KEY` configured).
+
+`traceUrl` on `NodeUpdateEvent` remains a reserved, currently-unset slot for the
+LangSmith link landing in Phase 3.
 
 ## Frontend layout
 
