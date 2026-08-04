@@ -28,10 +28,10 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · owner in parens.
 - [x] T23 (qa): Redesign QA + regression playthrough. Findings (3 MAJOR, 3 MINOR, 3 NIT) fixed and re-verified.
 
 ## Phase 2 — Real backend
-- [ ] T6: FastAPI + endpoints + SSE per contract.
-- [ ] T7: LangGraph StateGraph (routing, retries, reviewer loop, interrupt for HITL), simulated tools; optional OpenAI (gpt-4o-mini) with simulated fallback.
-- [ ] T8: Frontend SSE client replacing simulator (same store).
-- [ ] T9: QA end-to-end.
+- [x] T6: FastAPI + endpoints + SSE per contract. Done for life-support: `POST /runs`, `GET /runs/{id}/events` (SSE), `POST /runs/{id}/approval`, `GET /healthz`.
+- [x] T7: LangGraph StateGraph (routing, retries, reviewer loop, interrupt for HITL), simulated tools; optional OpenAI (gpt-4o-mini) with simulated fallback. Done for life-support: real `interrupt()` pauses the graph at the review gate; simulated-tools fallback when no `OPENAI_API_KEY`.
+- [x] T8: Frontend SSE client replacing simulator (same store), for life-support runs.
+- [ ] T9: QA end-to-end. Manual E2E verified live in browser (real run → `awaiting_approval` → approval → `completed`, graph animates from real backend events, token economy intact). Left open for further/automated QA coverage.
 
 ## Phase 3 — LangSmith + metrics
 - [ ] T10: LangSmith tracing + traceUrl in events; run metrics; failure injection.

@@ -10,6 +10,7 @@ import { GraphCanvas } from "@/components/layout/GraphCanvas";
 import { Header } from "@/components/layout/Header";
 import { SidePanel } from "@/components/layout/SidePanel";
 import { VegaWidget } from "@/components/vega/VegaWidget";
+import { startBackendRun } from "@/lib/backend/sseClient";
 import { createEconomyBridge } from "@/lib/game/economy";
 import { resetIncidents } from "@/lib/game/incidents";
 import { useResourceSounds } from "@/lib/hooks/useResourceSounds";
@@ -63,7 +64,14 @@ export default function Home() {
       // reducer, billing per-node token costs and granting mission rewards
       // without runStore itself knowing about tokens/resources.
       const economyApplyEvent = createEconomyBridge(missionScenario, applyEvent);
-      handleRef.current = startRun(routedScenario, prompt, economyApplyEvent, activeDomain);
+      // ACU-68: life-support is backed by the real FastAPI + LangGraph
+      // backend when the flag is on; every other scenario keeps playing
+      // through the local scripted engine unchanged.
+      const USE_REAL_BACKEND = process.env.NEXT_PUBLIC_USE_REAL_BACKEND === "1";
+      handleRef.current =
+        USE_REAL_BACKEND && routedScenario === "life-support"
+          ? startBackendRun(routedScenario, prompt, economyApplyEvent, activeDomain)
+          : startRun(routedScenario, prompt, economyApplyEvent, activeDomain);
     },
     [applyEvent, resetRun, selectNode, setScenario, tokens, isGameOver],
   );

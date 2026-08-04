@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConsoleHint } from "@/components/inbox/ConsoleHint";
+import { VegaAvatar, type VegaState } from "@/components/vega/VegaAvatar";
 import { SHIP_AI_NAME } from "@/data/narrative";
 import { DEFAULT_CONSOLE_PLACEHOLDER, SCENARIO_HINTS } from "@/data/scenarios";
 import { useInboxStore } from "@/lib/store/inboxStore";
@@ -61,6 +62,71 @@ function standingLine(runStatus: RunStatus, finalResponse: string | null): strin
   return "Standing by for your orders, Captain.";
 }
 
+/**
+ * Derives VEGA's avatar mood from the widget's real, currently-available
+ * signals. Priority order (first match wins) — highest-stakes / most
+ * time-sensitive condition first, so it can never be masked by a lower one:
+ *
+ *   1. offline  — canSubmit is false (compute depleted). Overrides
+ *                 everything: there's no point looking busy or happy if the
+ *                 crew can't act at all.
+ *   2. alert    — awaiting captain authorization. Second-highest: a live
+ *                 decision is blocked on the captain right now.
+ *   3. thinking — a run is in progress (runStatus === "started").
+ *   4. decline  — the last routed run was "irrelevant" (out of scope) AND
+ *                 its response is still the one on screen. Signal: page.tsx
+ *                 computes `missionScenario = routedScenario === "irrelevant"
+ *                 ? null : routedScenario` and calls `setScenario(...)`
+ *                 *before* starting the run (see page.tsx handleSubmitPrompt)
+ *                 — so `scenarioId === null` in runStore, combined with a
+ *                 finalResponse actually present, is the router's own
+ *                 classification, not an inference from response text. A
+ *                 mission's own scenarioId is never "irrelevant"/null by
+ *                 construction (see MISSION_DEFINITIONS in missionStore.ts
+ *                 and the comment on activeMissionScenarioId below), so this
+ *                 can't misfire on an active mission's completed run.
+ *                 Checked before speaking/success so a decline never reads
+ *                 as a normal happy response.
+ *   5. speaking — a run just completed WITH a response (not a decline) and
+ *                 that response is still the one on screen. Chosen over a
+ *                 timed transient (setTimeout back to "success"/"idle")
+ *                 because the widget already has a natural "still showing
+ *                 the response" window for free: as soon as the captain
+ *                 submits a new prompt, finalResponse is superseded by the
+ *                 next run and this falls through to thinking/idle on its
+ *                 own — no extra timer/state needed, and no risk of the
+ *                 avatar flipping expression mid-read.
+ *   6. listening — the command textarea currently has focus (captain is
+ *                  composing a prompt).
+ *   7. idle     — default / at rest.
+ *
+ * Not wired (no natural trigger in this widget today, documented rather than
+ * invented):
+ *   - warning: no condition in this widget is distinct from `alert` but
+ *     lower-urgency. runStatus "failed" is the closest candidate but isn't
+ *     rendered anywhere in the widget today (RUN_STATUS_LABEL has no
+ *     "failed" entry), so treating it as `warning` would be inventing UI
+ *     behavior beyond what's asked. Left out rather than forced.
+ *   - success: intentionally folded into `speaking` per the "keep it
+ *     natural" guidance above rather than split into a separate transient
+ *     state — see point 5.
+ */
+function stateFromRun(
+  canSubmit: boolean,
+  runStatus: RunStatus,
+  finalResponse: string | null,
+  scenarioId: ScenarioId | null,
+  isTextareaFocused: boolean,
+): VegaState {
+  if (!canSubmit) return "offline";
+  if (runStatus === "awaiting_approval") return "alert";
+  if (runStatus === "started") return "thinking";
+  if (finalResponse && scenarioId === null) return "decline";
+  if (finalResponse) return "speaking";
+  if (isTextareaFocused) return "listening";
+  return "idle";
+}
+
 /** One captain->VEGA exchange kept in the widget's local conversation
  * history (component state only — no store changes). */
 interface ConversationExchange {
@@ -90,6 +156,12 @@ export function VegaWidget({
   const runStatus = useRunStore((state) => state.runStatus);
   const events = useRunStore((state) => state.events);
   const runId = useRunStore((state) => state.runId);
+  // The routed scenario for the current/last run, set by page.tsx before
+  // starting it — null means the router classified the prompt as
+  // "irrelevant" (see stateFromRun's `decline` branch below). Distinct from
+  // activeMissionScenarioId just below, which describes the active MISSION,
+  // not the last routed run.
+  const runScenarioId = useRunStore((state) => state.scenarioId);
   // A mission's scenarioId is never "irrelevant" by construction (see
   // MISSION_DEFINITIONS in missionStore.ts).
   const activeMissionScenarioId = useMissionStore(
@@ -103,6 +175,7 @@ export function VegaWidget({
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<ConversationExchange[]>([]);
   const [isBootLineVisible, setIsBootLineVisible] = useState(false);
+  const [isTextareaFocused, setIsTextareaFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const dismissConsoleHint = useInboxStore((state) => state.dismissConsoleHint);
@@ -165,6 +238,8 @@ export function VegaWidget({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
+
+  const vegaState = stateFromRun(canSubmit, runStatus, finalResponse, runScenarioId, isTextareaFocused);
 
   const open = () => {
     setIsOpen(true);
@@ -293,6 +368,8 @@ export function VegaWidget({
                   aria-label="Command input to VEGA"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
+                  onFocus={() => setIsTextareaFocused(true)}
+                  onBlur={() => setIsTextareaFocused(false)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
@@ -337,13 +414,16 @@ export function VegaWidget({
           onClick={open}
           aria-label={`Open ${SHIP_AI_NAME} console`}
           aria-expanded={isOpen}
-          className={`relative flex h-16 w-16 items-center justify-center rounded-full border-2 bg-panel shadow-lg transition-colors ${
+          className={`relative flex h-28 w-28 items-center justify-center rounded-full border-2 bg-panel shadow-lg transition-colors ${
             isAwaitingApproval
               ? "animate-mc-pulse border-warning text-warning"
               : "border-accent text-accent hover:bg-accent/10"
           }`}
         >
-          <VegaMark />
+          {/* Sized to fill the h-28 w-28 (112px) FAB with a small breathing
+              margin — the old VegaMark was only 28px and left the droid
+              looking lost in the circle. */}
+          <VegaAvatar state={vegaState} size={96} title={`${SHIP_AI_NAME} — ${vegaState}`} />
           {isRunning && !isAwaitingApproval && (
             <span
               aria-hidden="true"
@@ -353,24 +433,5 @@ export function VegaWidget({
         </button>
       </div>
     </div>
-  );
-}
-
-/** Simple concentric-circles / lens mark for VEGA — distinctive at 64px,
- * legible as a favicon-scale glyph, no external assets. */
-function VegaMark() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      className="h-7 w-7"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    </svg>
   );
 }
